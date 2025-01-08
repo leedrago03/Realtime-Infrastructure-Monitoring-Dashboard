@@ -1,17 +1,21 @@
 version: '3.8'
 
 services:
-  # Monitoring Dashboard
   dashboard:
     build: .
     ports:
       - "3000:80"
+    restart: unless-stopped
     depends_on:
       - prometheus
     networks:
       - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 1G
 
-  # Prometheus
   prometheus:
     image: prom/prometheus:latest
     ports:
@@ -24,10 +28,18 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    read_only: true
     networks:
       - monitoring
+    environment:
+      - TZ=UTC
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
 
-  # Node Exporter for host metrics
   node-exporter:
     image: prom/node-exporter:latest
     ports:
@@ -40,10 +52,12 @@ services:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
     networks:
       - monitoring
+    deploy:
+      mode: global
 
-  # cAdvisor for container metrics
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     ports:
@@ -54,12 +68,22 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
+    restart: unless-stopped
     networks:
       - monitoring
+    privileged: true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
 
 volumes:
   prometheus_data:
+    driver: local
 
 networks:
   monitoring:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.default_bridge: true
